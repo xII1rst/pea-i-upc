@@ -1,14 +1,14 @@
 # PEA-i UPC — gestor de investigación
 
-Dos programas para gestionar grupos de investigación, investigadores, productos, planes y sus relaciones. **C++** ofrece menús de consola y también actúa como backend de la **interfaz Python Tkinter**. Al abrir la ventana, Python inicia C++ automáticamente: C++ gestiona los datos, validaciones, estadísticas, cola, historial y CSV; Tkinter muestra formularios y gráficos. La implementación Python independiente sigue disponible mediante `--python-backend`.
+Dos programas para gestionar grupos de investigación, investigadores, productos, planes y sus relaciones. **C++** ofrece menús de consola y también actúa como backend de la **interfaz Python Tkinter**. Al abrir la ventana, Python inicia C++ automáticamente cuando está disponible: C++ gestiona los datos, validaciones, estadísticas, cola, historial y CSV; Tkinter muestra formularios y gráficos. Si C++ no puede arrancar, la ventana abre con el motor Python independiente.
 
-> **Estado actual:** las dos versiones están implementadas. `Taller2_XX.py` y `Taller2_XX.cpp` son nombres provisionales hasta definir las iniciales de los estudiantes. La especificación Word y la prueba manual en Windows siguen pendientes.
+> **Estado actual:** las dos versiones están implementadas. `Taller2_XX.py` y `Taller2_XX.cpp` son nombres provisionales hasta definir las iniciales de los estudiantes. La especificación Word y la prueba manual en Windows siguen pendientes; el ejecutable Windows se verificó bajo Wine.
 
 ## Descargar y ejecutar
 
 En GitHub, abra **Code → Download ZIP** y descomprima el proyecto. Si prefiere Git, copie la URL HTTPS del botón **Code** y ejecute `git clone URL_COPIADA`; después entre en la carpeta creada. Abra una terminal **dentro de la carpeta descomprimida o clonada**, donde está este `README.md`. GitHub muestra el código, pero la ventana Tkinter se ejecuta en su computadora.
 
-Para usar la ventana conectada necesita **Python 3.10 o posterior con Tkinter**, una sesión de escritorio, **CMake 3.16 o posterior** y un compilador **C++17**. La primera apertura compila el backend si falta `pea_cpp` o si el código C++ cambió. No hay paquetes de `pip` obligatorios. La consola C++ y el modo Python independiente funcionan por separado.
+Para abrir la ventana necesita **Python 3.10 o posterior con Tkinter** y una sesión de escritorio. No hay paquetes de `pip` obligatorios. En Windows de 64 bits, el repositorio incluye el ejecutable C++ necesario para la conexión; **el usuario no necesita instalar CMake, NMake ni `g++`**. En otros sistemas, Python intenta compilar C++ con CMake y un compilador C++17 disponibles. Si no puede, la ventana funciona con el motor Python. La consola C++ y el modo Python independiente funcionan por separado.
 
 ### Linux
 
@@ -27,7 +27,11 @@ python3 src/python/Taller2_XX.py
 
 La ventana inicia y cierra su propio proceso de backend; no necesita abrir la consola C++ aparte. Para comprobar qué motor está usando, abra **Ayuda → Acerca de PEA-i**.
 
-### Windows — PowerShell
+### Windows — doble clic
+
+Extraiga el ZIP completo o clone el repositorio. Haga doble clic en **`Iniciar PEA-i.pyw`** en la carpeta principal. También puede abrir directamente **`src/python/Taller2_XX.py`**. En Windows de 64 bits la interfaz usa el backend C++ incluido, sin abrir Dev-C++ ni instalar CMake. El archivo `.pyw` evita que aparezca una ventana de consola. Para comprobar el motor activo, abra **Ayuda → Acerca de PEA-i**.
+
+Si Windows abre el archivo como texto, instale Python 3.10 o posterior con Tkinter y asocie los archivos `.pyw` con Python; también puede iniciarlo desde PowerShell:
 
 ```powershell
 py -3 --version
@@ -37,7 +41,7 @@ py -3 src/python/Taller2_XX.py
 
 Si `py` no está disponible, pruebe los mismos comandos con `python`. Cierre la ventana de prueba de Tkinter antes de iniciar PEA-i.
 
-En Windows, CMake y un compilador C++17 también deben estar instalados para que la ventana pueda compilar su backend. Si ya compiló el ejecutable, puede señalarlo con `--cpp-binary build\Release\pea_cpp.exe`.
+Si desea usar un ejecutable C++ propio, indique su ruta con `--cpp-binary`; en ese caso, un error de ese ejecutable se muestra en lugar de cambiar al motor Python.
 
 Si descargó un ZIP, **extraiga todos los archivos** antes de ejecutar el programa: la opción de demostración busca `data/demo` dentro del proyecto.
 
@@ -53,19 +57,21 @@ cmake --build build --config Release
 
 ### C++ — Windows (PowerShell)
 
-Instale CMake y un compilador C++17 (por ejemplo, el de Visual Studio). Después ejecute:
+Esta compilación manual es opcional para el usuario de la interfaz. Para compilar con Dev-C++, configure el `PATH` de Windows para que encuentre `g++.exe` y `mingw32-make.exe`, instale CMake y ejecute:
 
 ```powershell
-cmake -S . -B build
-cmake --build build --config Release
-.\build\Release\pea_cpp.exe
+cmake -S . -B build-mingw -G "MinGW Makefiles"
+cmake --build build-mingw
+.\build-mingw\pea_cpp.exe
 ```
 
-Algunos generadores de CMake colocan el ejecutable directamente en `build\pea_cpp.exe`. Si no está en `build\Release`, pruebe esa ruta. Los comandos de Windows están documentados, pero todavía no se han probado en un equipo Windows.
+Si ya existe una carpeta de compilación configurada con NMake, use la carpeta nueva `build-mingw` del ejemplo para evitar conflictos de generador. Los comandos de Windows todavía no se han probado en un equipo Windows.
+
+Para actualizar el ejecutable Windows incluido después de modificar C++, ejecute `python scripts/build_windows_backend.py` con un compilador MinGW de 64 bits. El script vuelve a generar `bin/windows/pea_cpp.exe` y su huella de fuentes. Los usuarios de la interfaz no necesitan ejecutar este paso.
 
 ### Dos modos de la ventana
 
-`python3 src/python/Taller2_XX.py` usa C++ como backend por defecto. Para ejecutar la implementación Python original de manera independiente, use `python3 src/python/Taller2_XX.py --python-backend`. La consola C++ se ejecuta con `./build/pea_cpp`. Los tres modos usan el mismo [esquema CSV](docs/esquema_datos.md), pero abra una misma carpeta de datos en una sola instancia a la vez. La [conexión entre Tkinter y C++](docs/protocolo_backend.md) funciona localmente, sin red.
+`python3 src/python/Taller2_XX.py` prefiere C++ como backend y usa Python si C++ no está disponible. Para forzar la implementación Python independiente, use `python3 src/python/Taller2_XX.py --python-backend`. La consola C++ se ejecuta con `./build/pea_cpp` en Linux o con `bin\windows\pea_cpp.exe` en Windows. Los tres modos usan el mismo [esquema CSV](docs/esquema_datos.md), pero abra una misma carpeta de datos en una sola instancia a la vez. La [conexión entre Tkinter y C++](docs/protocolo_backend.md) funciona localmente, sin red.
 
 ### Mostrar el cruce en una demostración
 
@@ -109,7 +115,7 @@ En C++, los menús principales son **Grupos**, **Investigadores**, **Productos**
 - **Importación CSV en ambos programas:** seleccione un tipo de registro y un archivo del [esquema PEA-i](docs/esquema_datos.md); revise cuántas filas se aceptarán o rechazarán antes de mezclarlo con los datos. Importe primero entidades y después relaciones que las referencien.
 - **Consulta de URL solo en Python:** **Importar → URL pública...** acepta una página pública HTTP/HTTPS en HTML, texto, CSV o PDF de texto. Muestra título, fuente, metadatos declarados, tablas HTML y texto visible antes de crear nada. Puede revisar y crear un grupo, investigador o producto desde esa vista. En una ficha GrupLAC, **Importar datos detectados** incorpora el grupo, su censo de integrantes, el plan, los productos fechados de las secciones bibliográficas y técnicas reconocidas y las autorías cuyos nombres coinciden con el censo; puede volver a consultar la ficha sin duplicar esos registros. Una ficha CvLAC propone el investigador y permite completar un registro existente. Una página académica con metadatos de artículo puede proponer título, año y DOI. Un CSV descargado puede importarse si usa los encabezados del esquema PEA-i. **Importar → PDF de texto GrupLAC/CvLAC...** también acepta un PDF local con `pdftotext` de Poppler instalado y solicita la URL de origen.
 
-Las tablas de Tkinter muestran 100 registros por página; use **Anterior** y **Siguiente** para recorrerlos. La búsqueda filtra el conjunto completo. Los campos de ID en filtros y formularios aceptan escribir un ID aunque no aparezca entre las primeras sugerencias.
+Las tablas de Tkinter muestran 100 registros por página; use **Anterior** y **Siguiente** para recorrerlos. La búsqueda filtra el conjunto completo. En **Grupos**, **Investigadores**, **Productos** y **Planes** puede arrastrar directamente el borde entre la tabla y **Información general** para ajustar sus alturas; ambos paneles conservan un tamaño mínimo. Los campos de ID en filtros y formularios aceptan escribir un ID aunque no aparezca entre las primeras sugerencias.
 
 En la ventana conectada, Python descarga y presenta la URL; solo envía al backend C++ el registro que el usuario revise y guarde. Los registros creados mediante el formulario de esa vista conservan la URL y la fecha de consulta en `fuente`. Los CSV descargados conservan los campos que declara el propio archivo.
 
@@ -159,12 +165,12 @@ En Linux se probó también `--products 225000 --people 9000 --links 225000 --jo
 ## Si algo no abre
 
 - **No encuentra `src/python/Taller2_XX.py`:** abra la terminal en la carpeta que contiene este README y repita el comando.
-- **No encuentra `pea_cpp` o `pea_cpp.exe`:** compile con CMake desde la raíz del proyecto y use la ruta que haya generado su compilador.
-- **La ventana indica que no pudo compilar el backend:** instale CMake y un compilador C++17, ejecute manualmente los comandos de compilación anteriores y vuelva a abrir Python. El modo `--python-backend` permite usar la versión independiente.
+- **El motor aparece como Python en Ayuda → Acerca de PEA-i:** la ventana está funcionando con el respaldo Python. En Windows de 64 bits, compruebe que descargó o clonó el repositorio completo y que existe `bin/windows/pea_cpp.exe`. En otros sistemas, instale CMake y un compilador C++17 para activar la conexión C++.
+- **Aparece `CMAKE_CXX_COMPILER not set` o un error de NMake al compilar manualmente:** CMake no está encontrando el compilador de Dev-C++. Agregue al `PATH` la carpeta que contiene `g++.exe` y `mingw32-make.exe`, y use `-G "MinGW Makefiles"` con una carpeta de compilación nueva. Para abrir la ventana normalmente en Windows, estos programas no son necesarios.
 - **Falla `python3 -m tkinter` o `py -3 -m tkinter`:** instale una distribución de Python que incluya Tkinter o el paquete Tkinter de su sistema.
 - **Error de pantalla o `display`:** ejecute el programa desde una sesión gráfica local; necesita poder abrir ventanas de escritorio.
 - **No se puede importar PDF:** compruebe que `pdftotext` está instalado y que el PDF tiene texto seleccionable. También puede usar CSV.
 - **Una URL no muestra datos útiles:** compruebe que es pública y que el contenido aparece en el HTML o documento descargado. Si la página carga todo mediante JavaScript o exige cuenta, use un CSV o PDF de texto exportado por el sitio.
 - **No se puede abrir una carpeta guardada:** verifique que contiene `manifest.csv` y todos los CSV del [esquema](docs/esquema_datos.md). Si un guardado se dañó y existe `.backup`, la aplicación ofrece abrir la copia anterior.
 
-La lógica Python y sus pruebas se verificaron en Linux con Python 3.14. C++ se compiló y probó en Linux; las pruebas de integración comprobaron la comunicación Tkinter/C++, el intercambio de CSV y el historial. La ventana conectada abrió y cargó la muestra pública en Linux. Los comandos de PowerShell están documentados, pero todavía no se han probado en Windows. El avance real y los límites se registran en [PROGRESO.md](PROGRESO.md); el [enunciado](ENUNCIADO_TALLER_2.md) y el [plan](PLAN_PROYECTO.md) conservan los requisitos del taller.
+La lógica Python y sus pruebas se verificaron en Linux con Python 3.14. C++ se compiló y probó en Linux; las pruebas de integración comprobaron la comunicación Tkinter/C++, el intercambio de CSV y el historial. La ventana conectada abrió y cargó la muestra pública en Linux. El ejecutable Windows incluido pasó su autoprueba y respondió al protocolo JSON bajo Wine; el doble clic aún debe comprobarse en un Windows real. El avance real y los límites se registran en [PROGRESO.md](PROGRESO.md); el [enunciado](ENUNCIADO_TALLER_2.md) y el [plan](PLAN_PROYECTO.md) conservan los requisitos del taller.

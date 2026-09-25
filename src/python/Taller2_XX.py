@@ -853,6 +853,25 @@ def preview_csv_merge(repo: Repository, path: Path, kind: str) -> tuple[int, int
     return len(rows), accepted, errors
 
 
+def bundled_windows_cpp(root: Path) -> Path | None:
+    """Usa el binario incluido solo si corresponde al código fuente actual."""
+    binary = root / "bin" / "windows" / "pea_cpp.exe"
+    fingerprint = binary.with_suffix(".source-sha256")
+    if not binary.is_file() or not fingerprint.is_file():
+        return None
+    try:
+        digest = hashlib.sha256()
+        for source in (root / "CMakeLists.txt", root / "src/cpp/Taller2_XX.cpp"):
+            digest.update(source.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(source.read_bytes().replace(b"\r\n", b"\n"))
+        if fingerprint.read_text(encoding="ascii").strip() == digest.hexdigest():
+            return binary
+    except (OSError, UnicodeError):
+        pass
+    return None
+
+
 def cpp_executable(explicit: Path | None = None) -> Path:
     """Localiza o compila el ejecutable que atiende a la interfaz Tkinter."""
     root = Path(__file__).resolve().parents[2]
@@ -861,21 +880,37 @@ def cpp_executable(explicit: Path | None = None) -> Path:
         if not binary.is_file():
             raise DataError(f"No existe el backend C++: {binary}")
         return binary
-    candidates = [root / "build" / "Release" / "pea_cpp.exe",
+    candidates = [root / "build" / "mingw" / "pea_cpp.exe",
+                  root / "build" / "default" / "Release" / "pea_cpp.exe",
+                  root / "build" / "default" / "pea_cpp.exe",
+                  root / "build" / "Release" / "pea_cpp.exe",
                   root / "build" / "pea_cpp.exe",
                   root / "build" / "pea_cpp"]
     available = [item for item in candidates if item.is_file()]
     binary = max(available, key=lambda item: item.stat().st_mtime) if available else None
     newest_source = max((root / "CMakeLists.txt").stat().st_mtime,
                         (root / "src" / "cpp" / "Taller2_XX.cpp").stat().st_mtime)
+    if binary is not None and binary.stat().st_mtime >= newest_source:
+        return binary
+    if os.name == "nt":
+        bundled = bundled_windows_cpp(root)
+        if bundled is not None:
+            return bundled
     if binary is None or binary.stat().st_mtime < newest_source:
         if shutil.which("cmake") is None:
             raise DataError("CMake no está instalado. Instálelo para compilar el backend C++.")
-        for command in (["cmake", "-S", str(root), "-B", str(root / "build")],
-                        ["cmake", "--build", str(root / "build"), "--config", "Release"]):
-            completed = subprocess.run(command, cwd=root, text=True, encoding="utf-8",
-                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                       check=False)
+        mingw = bool(os.name == "nt" and shutil.which("g++") and shutil.which("mingw32-make"))
+        build_dir = root / "build" / ("mingw" if mingw else "default")
+        configure = ["cmake", "-S", str(root), "-B", str(build_dir)]
+        if mingw:
+            configure += ["-G", "MinGW Makefiles"]
+        for command in (configure, ["cmake", "--build", str(build_dir), "--config", "Release"]):
+            try:
+                completed = subprocess.run(command, cwd=root, text=True, encoding="utf-8",
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                           check=False)
+            except OSError as exc:
+                raise DataError(f"No se pudo iniciar CMake: {exc}") from exc
             if completed.returncode:
                 raise DataError("No se pudo compilar el backend C++:\n" + completed.stdout[-3000:])
         available = [item for item in candidates if item.is_file()]
@@ -1778,6 +1813,19 @@ def new_id(prefix: str) -> str:
     return prefix + "-" + uuid.uuid4().hex[:8].upper()
 
 
+def open_gui_repository(*, python_backend: bool = False,
+                        cpp_binary: Path | None = None) -> tuple[Repository | CppRepository, str]:
+    """Abre el motor disponible y devuelve un aviso si se usó el respaldo Python."""
+    if python_backend:
+        return Repository(), ""
+    try:
+        return CppRepository(cpp_binary), ""
+    except DataError as exc:
+        if cpp_binary is not None:
+            raise
+        return Repository(), str(exc).splitlines()[0]
+
+
 def run_gui(data_dir: Path | None = None, *, python_backend: bool = False,
             cpp_binary: Path | None = None) -> None:
     import tkinter as tk
@@ -1872,8 +1920,17 @@ def run_gui(data_dir: Path | None = None, *, python_backend: bool = False,
                 "productos": ("id", "titulo", "anio", "tipologia", "categoria", "validacion", "activo"),
                 "planes": ("id", "grupo_id", "nombre", "inicio", "fin", "activo"),
             }[kind]
-            table_frame = ttk.Frame(self)
-            table_frame.pack(fill="both", expand=True, pady=(7, 4))
+            self.split = tk.PanedWindow(self, orient="vertical", sashwidth=5, sashpad=0,
+                                        sashrelief="flat", sashcursor="sb_v_double_arrow",
+                                        showhandle=False, opaqueresize=True,
+                                        background="#eef3f8", borderwidth=0)
+            self.split.pack(fill="both", expand=True, pady=(7, 0))
+            list_panel = ttk.Frame(self.split)
+            detail_panel = ttk.Frame(self.split)
+            self.split.add(list_panel, minsize=175, stretch="always")
+            self.split.add(detail_panel, minsize=110, stretch="never")
+            table_frame = ttk.Frame(list_panel)
+            table_frame.pack(fill="both", expand=True)
             table_frame.columnconfigure(0, weight=1)
             table_frame.rowconfigure(0, weight=1)
             self.table = ttk.Treeview(table_frame, columns=visible, show="headings", selectmode="browse", height=14)
@@ -1888,7 +1945,7 @@ def run_gui(data_dir: Path | None = None, *, python_backend: bool = False,
             table_y.grid(row=0, column=1, sticky="ns")
             table_x.grid(row=1, column=0, sticky="ew")
             self.table.bind("<<TreeviewSelect>>", lambda _event: self.show_detail())
-            pager = ttk.Frame(self)
+            pager = ttk.Frame(list_panel)
             pager.pack(fill="x")
             ttk.Button(pager, text="Anterior", command=lambda: self._move(-1)).pack(side="left")
             self.page_label = tk.StringVar()
@@ -1896,12 +1953,16 @@ def run_gui(data_dir: Path | None = None, *, python_backend: bool = False,
             ttk.Button(pager, text="Siguiente", command=lambda: self._move(1)).pack(side="left")
             if kind in ("grupos", "investigadores"):
                 ttk.Button(pager, text="Consultar fuente", command=self.open_source).pack(side="right")
-            detail_frame = ttk.Frame(self)
-            detail_frame.pack(fill="x")
-            self.detail = tk.Text(detail_frame, height=9, wrap="word", state="disabled")
+            ttk.Label(detail_panel, text="Información general", style="TLabelframe.Label").pack(anchor="w", padx=4, pady=(2, 4))
+            detail_frame = ttk.Frame(detail_panel)
+            detail_frame.pack(fill="both", expand=True)
+            self.detail = tk.Text(detail_frame, height=8, wrap="word", state="disabled",
+                                  font=("Segoe UI", 10), background="#ffffff", foreground="#23384c",
+                                  selectbackground="#dce7ef", padx=10, pady=8, borderwidth=0,
+                                  highlightthickness=1, highlightbackground="#d4e0ea")
             detail_y = ttk.Scrollbar(detail_frame, orient="vertical", command=self.detail.yview)
             self.detail.configure(yscrollcommand=detail_y.set)
-            self.detail.pack(side="left", fill="x", expand=True)
+            self.detail.pack(side="left", fill="both", expand=True)
             detail_y.pack(side="right", fill="y")
             self.visible = visible
 
@@ -2874,8 +2935,11 @@ def run_gui(data_dir: Path | None = None, *, python_backend: bool = False,
     root = tk.Tk()
     repository: Repository | CppRepository | None = None
     try:
-        repository = Repository() if python_backend else CppRepository(cpp_binary)
-        App(root, data_dir, repository)
+        repository, fallback_reason = open_gui_repository(
+            python_backend=python_backend, cpp_binary=cpp_binary)
+        app = App(root, data_dir, repository)
+        if fallback_reason:
+            app.status.set(f"Motor Python activo: {fallback_reason}")
         root.mainloop()
     except DataError as exc:
         messagebox.showerror("Backend C++", str(exc), parent=root)

@@ -36,6 +36,33 @@ def sample() -> pea.Repository:
     return repo
 
 
+class StartupTest(unittest.TestCase):
+    def test_windows_bundle_matches_cpp_source(self):
+        root = SOURCE.parents[2]
+        self.assertEqual(pea.bundled_windows_cpp(root), root / "bin/windows/pea_cpp.exe")
+        with tempfile.TemporaryDirectory() as folder:
+            checkout = Path(folder)
+            for name in ("CMakeLists.txt", "src/cpp/Taller2_XX.cpp"):
+                copied = checkout / name
+                copied.parent.mkdir(parents=True, exist_ok=True)
+                content = (root / name).read_bytes().replace(b"\r\n", b"\n")
+                copied.write_bytes(content.replace(b"\n", b"\r\n"))
+            binary = checkout / "bin/windows/pea_cpp.exe"
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b"MZ")
+            binary.with_suffix(".source-sha256").write_bytes(
+                (root / "bin/windows/pea_cpp.source-sha256").read_bytes())
+            self.assertEqual(pea.bundled_windows_cpp(checkout), binary)
+
+    def test_python_fallback_and_explicit_cpp_error(self):
+        with patch.object(pea, "CppRepository", side_effect=pea.DataError("CMake falló\nNMake no disponible")):
+            repository, notice = pea.open_gui_repository()
+            self.assertIsInstance(repository, pea.Repository)
+            self.assertEqual(notice, "CMake falló")
+            with self.assertRaisesRegex(pea.DataError, "CMake falló"):
+                pea.open_gui_repository(cpp_binary=Path("backend.exe"))
+
+
 class StructuresTest(unittest.TestCase):
     def test_doubly_linked_list_boundaries(self):
         linked = pea.DoublyLinkedList()

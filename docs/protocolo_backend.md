@@ -1,6 +1,6 @@
 # Conexión Tkinter ↔ C++
 
-La interfaz `src/python/Taller2_XX.py` usa `CppRepository` por defecto. Al abrirse, localiza `pea_cpp` en `build/` o lo compila con CMake, inicia `pea_cpp --api` como proceso hijo y lo cierra al salir. El usuario abre **una sola ventana**. No hay servidor, puerto ni conexión a Internet.
+La interfaz `src/python/Taller2_XX.py` intenta usar `CppRepository` al abrirse. Localiza `pea_cpp` en `build/`; en Windows de 64 bits también puede usar el ejecutable incluido en `bin/windows/` si corresponde al código fuente. Si no existe un ejecutable vigente, intenta compilarlo con CMake. Cuando C++ no está disponible, abre el motor Python independiente. Cuando C++ sí arranca, inicia `pea_cpp --api` como proceso hijo y lo cierra al salir. El usuario abre **una sola ventana**. No hay servidor, puerto ni conexión a Internet.
 
 ```text
 Acción en Tkinter → solicitud JSON por stdin → C++ Repository
