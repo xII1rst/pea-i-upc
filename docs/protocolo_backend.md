@@ -12,7 +12,7 @@ Pantalla actualizada ← respuesta JSON por stdout ← validación, estructuras 
 
 - **C++:** listas dobles, multilistas, pila, cola, CRUD, integridad, estadísticas, importación CSV, deshacer, carga y guardado.
 - **Python Tkinter:** ventanas, formularios, filtros, gráficos, mensajes y extracción básica de perfiles HTML/PDF. En ese caso Python envía el registro revisado a C++ para validarlo e incorporarlo.
-- **Datos:** ambos modos comparten el [esquema CSV versión 2](esquema_datos.md) y abren carpetas anteriores de versión 1. La consola `pea_cpp` sigue funcionando sola. `python3 src/python/Taller2_REMR.py --python-backend` permite ejecutar el núcleo Python independiente si se necesita demostrar la segunda implementación.
+- **Datos:** ambos modos comparten el [esquema CSV versión 3](esquema_datos.md), con la misma validación automática de productos, y abren carpetas anteriores de versiones 1 y 2. La consola `pea_cpp` sigue funcionando sola. `python3 src/python/Taller2_REMR.py --python-backend` permite ejecutar el núcleo Python independiente si se necesita demostrar la segunda implementación.
 
 ## Protocolo local
 
@@ -27,10 +27,10 @@ printf '%s\n' '{"action":"ping"}' '{"action":"statistics","view":"Todos"}' | ./b
 La primera respuesta es:
 
 ```json
-{"ok":true,"result":{"backend":"cpp","protocol":"1"},"state":{"dirty":false,"history_size":0,"queue_size":2}}
+{"ok":true,"result":{"backend":"cpp","protocol":"2"},"state":{"dirty":false,"history_size":0,"queue_size":0}}
 ```
 
-El estado se adjunta a todas las respuestas: cambios sin guardar, longitud de pila de deshacer y trabajos en cola. Si una operación falla, C++ devuelve `{"ok":false,"error":"...","state":{...}}` y la ventana muestra el error sin cerrar el proceso.
+La versión de protocolo `2` corresponde al esquema 3; la ventana rechaza un ejecutable con otra versión y abre entonces el motor Python. El estado se adjunta a todas las respuestas: cambios sin guardar, longitud de pila de deshacer y trabajos en cola. Si una operación falla, C++ devuelve `{"ok":false,"error":"...","state":{...}}` y la ventana muestra el error sin cerrar el proceso.
 
 | Acción | Uso |
 |---|---|
@@ -39,10 +39,12 @@ El estado se adjunta a todas las respuestas: cambios sin guardar, longitud de pi
 | `reset`, `load`, `save` | Iniciar vacío, abrir una carpeta PEA-i, guardar CSV. |
 | `page`, `get`, `related_page` | Leer hasta 200 registros por solicitud y obtener el total de coincidencias. `page` admite `offset`, `limit` y `query`; `related_page` añade `side` (`left`/`right`) y `active` (`1`/`0`). |
 | `rows`, `related` | Lecturas completas conservadas para compatibilidad; la interfaz no las usa en sus tablas. |
-| `summary` | Contar grupos e investigadores activos y categorías de productos sin enviar todas las filas. |
+| `summary` | Contar grupos e investigadores activos sin enviar todas las filas. |
+| `field_usage` | Contar, por campo, los registros de un tipo con valor; la interfaz oculta las columnas vacías. |
+| `product_issues` | Códigos de las reglas que incumple un producto (`key`), en el orden del esquema. |
 | `create`, `update`, `delete`, `toggle` | Gestionar entidades y relaciones con validación C++. |
-| `statistics` | Recibir totales y conteos completos con una página de productos (`offset`, `limit`; 100 por defecto). |
-| `queue_page`, `queue_front`, `enqueue_review`, `process_review`, `discard_review` | Gestionar la cola FIFO con páginas. `queue_rows` queda disponible para compatibilidad. |
+| `statistics` | Recibir totales, conteos por año, tipología y validación, reglas incumplidas (`por_regla`) y una página de productos (`offset`, `limit`; 100 por defecto). Filtra por `status` (`validado`/`rechazado`). |
+| `queue_page`, `queue_front`, `enqueue_review`, `enqueue_rejected`, `process_review`, `discard_review` | Gestionar la cola FIFO con páginas. `enqueue_rejected` encola los rechazados y devuelve cuántos; `process_review` recibe la nota (`observation`) y devuelve el trabajo con la validación resultante. `queue_rows` queda disponible para compatibilidad. |
 | `undo`, `clear_history` | Usar la pila de cambios reversibles C++; acepta también instantáneas anteriores. |
 | `preview_csv`, `import_csv` | Revisar y aplicar una importación CSV. |
 
